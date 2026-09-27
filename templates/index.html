@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Change Investigator</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    background: #f7f8fa;
+    color: #1f2328;
+    min-height: 100vh;
+  }
+
+  header {
+    background: #1f2328;
+    color: #fff;
+    padding: 20px 32px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+  header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+  header p  { font-size: 14px; color: #8b949e; }
+
+  .container { max-width: 860px; margin: 0 auto; padding: 32px 24px; }
+
+  /* ---- Input form ---- */
+  .card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .card h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #1f2328; }
+
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; font-weight: 500; color: #57606a; margin-bottom: 4px; }
+  .field input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    background: #fff;
+    color: #1f2328;
+  }
+  .field input:focus { outline: 2px solid #3b82d4; outline-offset: -1px; border-color: transparent; }
+
+  .row { display: flex; gap: 10px; align-items: flex-end; }
+  .row .field { flex: 1; margin-bottom: 0; }
+
+  button#investigate-btn {
+    padding: 9px 20px;
+    background: #3b82d4;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  button#investigate-btn:hover { background: #2563c4; }
+  button#investigate-btn:disabled { background: #8b949e; cursor: not-allowed; }
+
+  /* ---- Status ---- */
+  #status-area { margin-bottom: 16px; }
+  .status-msg {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #57606a;
+    padding: 10px 14px;
+    background: #f7f8fa;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+  }
+  .status-msg.error { background: #fff0f0; border-color: #f0a0a0; color: #b91c1c; }
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid #d0d7de;
+    border-top-color: #3b82d4;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- Results ---- */
+  #results { display: none; }
+
+  .commit-meta {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 16px;
+    row-gap: 4px;
+    font-size: 13px;
+  }
+  .commit-meta .label { color: #57606a; font-weight: 500; }
+  .commit-meta .value { color: #1f2328; }
+  .commit-meta .subject { grid-column: 2; font-weight: 600; font-size: 14px; }
+
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 10px;
+    letter-spacing: 0.2px;
+  }
+  .badge-documented   { background: #ddf4e0; color: #1a7f37; }
+  .badge-inferred     { background: #dbeafe; color: #1d4ed8; }
+  .badge-reconstructed{ background: #fef9c3; color: #854d0e; }
+  .badge-uncertain    { background: #fce7f3; color: #9d174d; }
+  .badge-fallback     { background: #f3f4f6; color: #57606a; }
+
+  .section {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .section-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f7f8fa;
+  }
+  .section-icon { font-size: 16px; }
+  .section-title { font-size: 14px; font-weight: 700; color: #1f2328; flex: 1; }
+  .section-body  { padding: 16px 20px; font-size: 14px; line-height: 1.7; color: #1f2328; }
+
+  .section-body p   { margin-bottom: 10px; }
+  .section-body p:last-child { margin-bottom: 0; }
+  .section-body ul  { margin: 8px 0 10px 20px; }
+  .section-body li  { margin-bottom: 5px; }
+  .section-body code {
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 12px;
+    background: #f0f2f5;
+    padding: 1px 5px;
+    border-radius: 4px;
+    word-break: break-all;
+  }
+
+  .evidence-item {
+    padding: 10px 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: 13px;
+  }
+  .evidence-item:last-child { margin-bottom: 0; }
+  .evidence-text { flex: 1; line-height: 1.5; color: #1f2328; }
+
+  .confidence-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f2f5;
+    font-size: 13px;
+  }
+  .confidence-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .conf-label { min-width: 120px; font-weight: 600; color: #57606a; }
+  .conf-level { min-width: 60px; font-weight: 700; }
+  .conf-level.high   { color: #1a7f37; }
+  .conf-level.medium { color: #854d0e; }
+  .conf-level.low    { color: #b91c1c; }
+  .conf-explain { color: #57606a; }
+
+  .stats-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .stat-chip {
+    font-size: 12px;
+    color: #57606a;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 3px 10px;
+  }
+
+  .synthesis-note {
+    font-size: 12px;
+    color: #57606a;
+    background: #f7f8fa;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 20px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Change Investigator</h1>
+  <p>Recover the reasoning behind existing code.</p>
+</header>
+
+<div class="container">
+
+  <!-- Input card -->
+  <div class="card">
+    <h2>Investigate a commit</h2>
+    <div class="row">
+      <div class="field">
+        <label for="repo-input">Repository path</label>
+        <input id="repo-input" type="text" placeholder="../source/pydantic" value="../source/pydantic">
+      </div>
+      <div class="field">
+        <label for="commit-input">Commit SHA</label>
+        <input id="commit-input" type="text" placeholder="617abdb1b" value="617abdb1b">
+      </div>
+      <button id="investigate-btn">Investigate</button>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div id="status-area"></div>
+
+  <!-- Results -->
+  <div id="results"></div>
+
+</div>
+
+<script>
+(function () {
+  const btn = document.getElementById('investigate-btn');
+  const statusArea = document.getElementById('status-area');
+  const resultsArea = document.getElementById('results');
+
+  // --------------------------------------------------------------------------
+  // Badge helpers
+  // --------------------------------------------------------------------------
+  function badge(kind) {
+    const map = {
+      documented:     ['badge-documented',    'Documented'],
+      inferred:       ['badge-inferred',      'Inferred from code'],
+      reconstructed:  ['badge-reconstructed', 'Reconstructed from patterns'],
+      uncertain:      ['badge-uncertain',     'Uncertain'],
+      fallback:       ['badge-fallback',      'Evidence-based fallback'],
+    };
+    const [cls, label] = map[kind] || map.fallback;
+    return `<span class="badge ${cls}">${label}</span>`;
+  }
+
+  // --------------------------------------------------------------------------
+  // Parse raw section text into a readable list of evidence items.
+  // Each line that starts with "- [...]" is treated as a labelled item.
+  // --------------------------------------------------------------------------
+  function parseEvidenceLines(text) {
+    const items = [];
+    const lines = text.split('\n');
+    for (const line of lines) {
+      const m = line.match(/^[-*]\s*\[([^\]]+)\]\s*(.*)/);
+      if (m) {
+        const rawKind = m[1].toLowerCase();
+        let kind = 'fallback';
+        if (rawKind.includes('document')) kind = 'documented';
+        else if (rawKind.includes('inferred') || rawKind.includes('code')) kind = 'inferred';
+        else if (rawKind.includes('reconstruct') || rawKind.includes('pattern')) kind = 'reconstructed';
+        else if (rawKind.includes('uncertain')) kind = 'uncertain';
+        items.push({ kind, text: m[2].trim() });
+      } else if (line.trim() && !line.startsWith('#')) {
+        items.push({ kind: null, text: line.trim() });
+      }
+    }
+    return items.filter(i => i.text);
+  }
+
+  // --------------------------------------------------------------------------
+  // Render a plain paragraph block — strip markdown noise for readability
+  // --------------------------------------------------------------------------
+  function renderParagraphs(text) {
+    // Replace **bold** with <strong>, `code` with <code>
+    const escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    const formatted = escaped
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>');
+    const paras = formatted.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+    return paras.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+  }
+
+  // --------------------------------------------------------------------------
+  // Render evidence section
+  // --------------------------------------------------------------------------
+  function renderEvidence(text, ctx) {
+    const parsed = parseEvidenceLines(text);
+    const html = [];
+
+    // Peer files from context summary (more reliable than parsed text)
+    if (ctx.peer_files && ctx.peer_files.length > 0) {
+      html.push(`<div class="evidence-item">
+        ${badge('inferred')}
+        <span class="evidence-text">
+          <strong>Structural analogues found:</strong>
+          ${ctx.peer_files.slice(0, 4).map(p =>
+            `<code>${p.path}</code>`
+          ).join(', ')}
+          — these existing files share the same directory and file type, suggesting this commit follows an established pattern.
+        </span>
+      </div>`);
+    }
+
+    // Sibling commits from context summary
+    if (ctx.sibling_commits && ctx.sibling_commits.length > 0) {
+      const sibs = ctx.sibling_commits.slice(0, 4)
+        .map(s => `<code>${s.subject}</code>`)
+        .join(', ');
+      html.push(`<div class="evidence-item">
+        ${badge('reconstructed')}
+        <span class="evidence-text">
+          <strong>Related commits in the same series:</strong> ${sibs}
+        </span>
+      </div>`);
+    }
+
+    // New files
+    if (ctx.new_source_files && ctx.new_source_files.length > 0) {
+      html.push(`<div class="evidence-item">
+        ${badge('inferred')}
+        <span class="evidence-text">
+          <strong>${ctx.new_source_files.length} new source file(s) introduced:</strong>
+          ${ctx.new_source_files.slice(0, 5).map(f => `<code>${f}</code>`).join(', ')}
+        </span>
+      </div>`);
+    }
+
+    // Symbol references
+    if (ctx.grep_hit_count > 0) {
+      html.push(`<div class="evidence-item">
+        ${badge('inferred')}
+        <span class="evidence-text">
+          <strong>${ctx.grep_hit_count} references</strong> to the new symbols were found across the repository,
+          confirming the new types are integrated into the existing codebase.
+        </span>
+      </div>`);
+    }
+
+    // Changelog
+    if (ctx.changelog_found) {
+      html.push(`<div class="evidence-item">
+        ${badge('documented')}
+        <span class="evidence-text">
+          An entry for this change was found in the project changelog.
+        </span>
+      </div>`);
+    }
+
+    // Test files
+    if (ctx.test_files && ctx.test_files.length > 0) {
+      html.push(`<div class="evidence-item">
+        ${badge('inferred')}
+        <span class="evidence-text">
+          <strong>${ctx.test_files.length} test file(s)</strong> cover the new behaviour:
+          ${ctx.test_files.slice(0, 3).map(f => `<code>${f}</code>`).join(', ')}
+        </span>
+      </div>`);
+    }
+
+    // Any remaining parsed lines not already covered
+    const extra = parsed.filter(i => i.kind && i.text.length > 20).slice(0, 4);
+    for (const item of extra) {
+      html.push(`<div class="evidence-item">
+        ${badge(item.kind)}
+        <span class="evidence-text">${item.text
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        }</span>
+      </div>`);
+    }
+
+    return html.length > 0 ? html.join('') : `<p>${renderParagraphs(text)}</p>`;
+  }
+
+  // --------------------------------------------------------------------------
+  // Render confidence section
+  // --------------------------------------------------------------------------
+  function renderConfidence(text, wasSynthesised) {
+    const html = [];
+
+    // Parse known confidence lines from the fallback text
+    const highM  = text.match(/what changed.*?(HIGH|MEDIUM|LOW)/i);
+    const whyM   = text.match(/why it changed.*?(HIGH|MEDIUM|LOW)/i);
+    const uncertM = text.match(/Uncertainty[:\s]+(.+)/i);
+
+    if (highM) {
+      const lvl = highM[1].toLowerCase();
+      html.push(`<div class="confidence-row">
+        <span class="conf-label">What changed</span>
+        <span class="conf-level ${lvl}">${highM[1]}</span>
+        <span class="conf-explain">Based directly on the diff — file additions and modifications are factual.</span>
+      </div>`);
+    }
+    if (whyM) {
+      const lvl = whyM[1].toLowerCase();
+      html.push(`<div class="confidence-row">
+        <span class="conf-label">Why it changed</span>
+        <span class="conf-level ${lvl}">${whyM[1]}</span>
+        <span class="conf-explain">Reconstructed from repository patterns and sibling commits. Not explicitly stated by the author.</span>
+      </div>`);
+    }
+    if (uncertM) {
+      html.push(`<div class="confidence-row">
+        <span class="conf-label">Uncertainty</span>
+        <span class="conf-level medium">Note</span>
+        <span class="conf-explain">${uncertM[1].trim()}</span>
+      </div>`);
+    }
+
+    if (html.length === 0) {
+      html.push(`<div>${renderParagraphs(text)}</div>`);
+    }
+
+    if (!wasSynthesised) {
+      html.push(`<div class="confidence-row">
+        <span class="conf-label">Synthesis</span>
+        <span class="conf-level medium">Fallback</span>
+        <span class="conf-explain">
+          No LLM synthesis — this report was built directly from collected repository evidence.
+          Add watsonx credentials to <code>.env</code> for AI-enhanced narrative.
+        </span>
+      </div>`);
+    }
+
+    return html.join('');
+  }
+
+  // --------------------------------------------------------------------------
+  // Build the full results HTML
+  // --------------------------------------------------------------------------
+  function buildResults(data) {
+    const c = data.commit;
+    const r = data.report;
+    const ctx = data.context_summary;
+
+    const prBadge = c.pr_number
+      ? `<span class="badge badge-documented">PR #${c.pr_number}</span>`
+      : '';
+
+    const synthNote = r.was_synthesised
+      ? 'Report synthesised with IBM watsonx Granite.'
+      : 'Evidence-based report — no LLM synthesis. Add watsonx credentials to .env for AI-enhanced narrative.';
+
+    const statsChips = [
+      `${ctx.files_changed} files changed`,
+      `${ctx.new_source_files.length} new source files`,
+      ctx.sibling_commits.length > 0 ? `${ctx.sibling_commits.length} sibling commits` : null,
+      ctx.grep_hit_count > 0 ? `${ctx.grep_hit_count} symbol references` : null,
+      ctx.changelog_found ? 'Changelog entry found' : null,
+    ].filter(Boolean).map(s => `<span class="stat-chip">${s}</span>`).join('');
+
+    return `
+    <div class="commit-meta">
+      <span class="label">Commit</span>
+      <span class="value"><code>${c.short_sha}</code> ${prBadge}</span>
+      <span></span>
+      <span class="subject">${escHtml(c.subject)}</span>
+      <span class="label">Author</span>
+      <span class="value">${escHtml(c.author)}</span>
+      <span class="label">Date</span>
+      <span class="value">${escHtml(c.date)}</span>
+    </div>
+
+    <div class="stats-row">${statsChips}</div>
+
+    <div class="synthesis-note">${synthNote} &nbsp;(completed in ${data.elapsed}s)</div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-icon">&#128196;</span>
+        <span class="section-title">What changed</span>
+      </div>
+      <div class="section-body">${renderParagraphs(r.change)}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-icon">&#8644;</span>
+        <span class="section-title">Before and after</span>
+      </div>
+      <div class="section-body">${renderParagraphs(r.before_after)}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-icon">&#128270;</span>
+        <span class="section-title">Likely reason for this change</span>
+        ${badge('reconstructed')}
+      </div>
+      <div class="section-body">${renderParagraphs(r.problem_addressed)}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-icon">&#128196;</span>
+        <span class="section-title">Evidence</span>
+      </div>
+      <div class="section-body">${renderEvidence(r.evidence, ctx)}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-icon">&#9888;</span>
+        <span class="section-title">Confidence and uncertainty</span>
+      </div>
+      <div class="section-body">${renderConfidence(r.confidence, r.was_synthesised)}</div>
+    </div>
+    `;
+  }
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  // --------------------------------------------------------------------------
+  // Investigate button handler
+  // --------------------------------------------------------------------------
+  btn.addEventListener('click', async function () {
+    const repo   = document.getElementById('repo-input').value.trim();
+    const commit = document.getElementById('commit-input').value.trim();
+
+    if (!repo || !commit) {
+      statusArea.innerHTML = `<div class="status-msg error">Please fill in both fields.</div>`;
+      return;
+    }
+
+    btn.disabled = true;
+    resultsArea.style.display = 'none';
+    resultsArea.innerHTML = '';
+    statusArea.innerHTML = `
+      <div class="status-msg">
+        <div class="spinner"></div>
+        <span id="status-text">Starting investigation...</span>
+      </div>`;
+
+    const steps = [
+      'Fetching commit metadata...',
+      'Parsing diff and extracting symbols...',
+      'Reading source files...',
+      'Searching repository for evidence...',
+      'Finding structural peers and sibling commits...',
+      'Synthesising report...',
+    ];
+    let stepIdx = 0;
+    const ticker = setInterval(() => {
+      if (stepIdx < steps.length) {
+        document.getElementById('status-text').textContent = steps[stepIdx++];
+      }
+    }, 600);
+
+    try {
+      const resp = await fetch('/investigate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repo, commit }),
+      });
+
+      clearInterval(ticker);
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: resp.statusText }));
+        statusArea.innerHTML = `<div class="status-msg error">Error: ${escHtml(err.error || 'Unknown error')}</div>`;
+        btn.disabled = false;
+        return;
+      }
+
+      const data = await resp.json();
+      statusArea.innerHTML = '';
+      resultsArea.innerHTML = buildResults(data);
+      resultsArea.style.display = 'block';
+
+    } catch (err) {
+      clearInterval(ticker);
+      statusArea.innerHTML = `<div class="status-msg error">Network error: ${escHtml(err.message)}</div>`;
+    }
+
+    btn.disabled = false;
+  });
+})();
+</script>
+</body>
+</html>
